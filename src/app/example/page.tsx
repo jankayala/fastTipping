@@ -1,5 +1,9 @@
-import Head from 'next/head';
+import { Metadata } from 'next';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'Examples',
+};
 
 export default function Example() {
   const examples = [
@@ -7,12 +11,6 @@ export default function Example() {
   ];
   return (
     <div>
-      <Head>
-        <title>Example</title>
-        <meta name="description" content="Examples abput diferent topics" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-
       <main>
         <h1>Example</h1>
         <p>This is the Example page.</p>

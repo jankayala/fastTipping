@@ -1,20 +1,16 @@
-import Head from 'next/head';
+import { Metadata } from 'next';
 
-const Contact: React.FC = () => {
+export const metadata: Metadata = {
+  title: 'Contact Us',
+};
+
+export default function Contact() {
   return (
     <div>
-      <Head>
-        <title>Contact Us</title>
-        <meta name="description" content="Get in touch with us" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-
       <main>
         <h1>Contact Us</h1>
         <p>This is the Contact page.</p>
       </main>
     </div>
   );
-};
-
-export default Contact;
+}
