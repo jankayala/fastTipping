@@ -5,11 +5,13 @@ import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined';
 import ArrowUpwardOutlinedIcon from '@mui/icons-material/ArrowUpwardOutlined';
 import ArrowDownwardOutlinedIcon from '@mui/icons-material/ArrowDownwardOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 
 const PatternTipping = () => {
   const [level, setLevel] = useState<number>(1);
   const [maxPatternLength, setMaxPatternLength] = useState<number>(20);
   const [pattern, setPattern] = useState<number[]>([]);
+  const [gameState, setGameState] = useState<string>('READY');
   const [patternIndex, setPatternIndex] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
@@ -58,16 +60,22 @@ const PatternTipping = () => {
   };
 
   const handleArrowDown = (key: string) => {
-    const currentValue = pattern[patternIndex];
-    const currentValueAsArrow = valueAsArrow(currentValue);
-    if (key === currentValueAsArrow) {
-      if (pattern.length === maxPatternLength) {
-        startTimer();
+    if (gameState !== 'GAME_OVER') {
+      const currentValue = pattern[patternIndex];
+      const currentValueAsArrow = valueAsArrow(currentValue);
+      if (key === currentValueAsArrow) {
+        if (pattern.length === maxPatternLength) {
+          startTimer();
+        }
+        const newPattern = [...pattern];
+        newPattern.shift();
+        setPattern(newPattern);
+        setPatternIndex(0);
+      } else {
+        if (pattern.length !== maxPatternLength) {
+          gameOver();
+        }
       }
-      const newPattern = [...pattern];
-      newPattern.shift();
-      setPattern(newPattern);
-      setPatternIndex(0);
     }
   };
 
@@ -92,11 +100,13 @@ const PatternTipping = () => {
     setPattern(generatePatternArray());
     setElapsedTime(0);
     stopTimer();
+    setGameState('READY');
   };
 
   useEffect(() => {
     if (pattern.length === 0) {
       stopTimer();
+      setGameState('WON');
     }
   }, [pattern]);
 
@@ -138,6 +148,11 @@ const PatternTipping = () => {
 
   const stopTimer = () => {
     setTimerRunning(false);
+  };
+
+  const gameOver = () => {
+    stopTimer();
+    setGameState('GAME_OVER');
   };
 
   useEffect(() => {
@@ -183,10 +198,18 @@ const PatternTipping = () => {
         <h2>Timer</h2>
         <p>{formatTime(elapsedTime)} seconds</p>
       </div>
-      <h2>Pattern</h2>
-      {pattern.map((value, index) => (
+      {gameState === 'GAME_OVER' ? <h1>Game Over</h1> : <></>}
+      {gameState === 'WON' ? <h1>You Won!</h1> : <></>}
+      <h2>
+        Score {maxPatternLength - pattern.length} of {maxPatternLength}
+      </h2>
+      {pattern[0] && valueAsIcon(pattern[0])}
+      {pattern[1] && valueAsIcon(pattern[1])}
+      {pattern[2] && valueAsIcon(pattern[2])}
+      {pattern.length > 3 && <MoreVertIcon />}
+      {/* {pattern.map((value, index) => (
         <div key={index}>{valueAsIcon(value)}</div>
-      ))}
+      ))} */}
     </div>
   );
 };
