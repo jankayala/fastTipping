@@ -7,15 +7,14 @@ import ArrowDownwardOutlinedIcon from '@mui/icons-material/ArrowDownwardOutlined
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 
-const PatternTipping = () => {
-  const [level, setLevel] = useState<number>(1);
-  const [maxPatternLength, setMaxPatternLength] = useState<number>(20);
-  const [pattern, setPattern] = useState<number[]>([]);
-  const [gameState, setGameState] = useState<string>('READY');
-  const [patternIndex, setPatternIndex] = useState<number>(0);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const [timerRunning, setTimerRunning] = useState<boolean>(false);
+enum GameState {
+  READY,
+  PLAYING,
+  WON,
+  GAME_OVER,
+}
 
+const PatternTipping = () => {
   // Function to generate a random number between min and max (inclusive)
   const getRandomNumber = (min: number, max: number): number => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -28,6 +27,18 @@ const PatternTipping = () => {
     }
     return patternArray;
   };
+
+  const [level, setLevel] = useState<number>(1);
+  const [maxPatternLength, setMaxPatternLength] = useState<number>(5);
+  const [pattern, setPattern] = useState<number[]>(generatePatternArray());
+  const [gameState, setGameState] = useState<GameState>(GameState.READY);
+  const [patternIndex, setPatternIndex] = useState<number>(0);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [timerRunning, setTimerRunning] = useState<boolean>(false);
+  const [bestScores, setBestScores] = useState<{
+    [key: number]: { name: string; time: number }[];
+  }>({});
+  const [playerName, setPlayerName] = useState<string>('');
 
   const valueAsArrow = (value: number): string => {
     switch (value) {
@@ -60,12 +71,13 @@ const PatternTipping = () => {
   };
 
   const handleArrowDown = (key: string) => {
-    if (gameState !== 'GAME_OVER') {
+    if (gameState !== GameState.GAME_OVER && gameState !== GameState.WON) {
       const currentValue = pattern[patternIndex];
       const currentValueAsArrow = valueAsArrow(currentValue);
       if (key === currentValueAsArrow) {
         if (pattern.length === maxPatternLength) {
           startTimer();
+          setGameState(GameState.PLAYING);
         }
         const newPattern = [...pattern];
         newPattern.shift();
@@ -100,13 +112,36 @@ const PatternTipping = () => {
     setPattern(generatePatternArray());
     setElapsedTime(0);
     stopTimer();
-    setGameState('READY');
+    setGameState(GameState.READY);
+  };
+
+  const updateBestScores = () => {
+    const newScore = { name: playerName || 'Anonymous', time: elapsedTime };
+
+    // Create a copy of the best scores for the current pattern length
+    const currentScores = bestScores[maxPatternLength] || [];
+
+    // Add the new score and sort the array by time in ascending order
+    const updatedScores = [...currentScores, newScore]
+      .sort((a, b) => a.time - b.time)
+      .slice(0, 3); // Keep only the top 3 scores
+
+    // Update the best scores object with the new scores for the current pattern length
+    const newBestScores = {
+      ...bestScores,
+      [maxPatternLength]: updatedScores,
+    };
+
+    // Set the new best scores in state and localStorage
+    setBestScores(newBestScores);
+    localStorage.setItem('bestScores', JSON.stringify(newBestScores));
   };
 
   useEffect(() => {
     if (pattern.length === 0) {
       stopTimer();
-      setGameState('WON');
+      setGameState(GameState.WON);
+      updateBestScores();
     }
   }, [pattern]);
 
@@ -125,7 +160,7 @@ const PatternTipping = () => {
     return () => {
       clearInterval(timer);
     };
-  }, [timerRunning]);
+  }, [elapsedTime, timerRunning]);
 
   // Format elapsed time to show milliseconds
   const formatTime = (time: number) => {
@@ -152,20 +187,68 @@ const PatternTipping = () => {
 
   const gameOver = () => {
     stopTimer();
-    setGameState('GAME_OVER');
+    setGameState(GameState.GAME_OVER);
+  };
+
+  const renderGameStateMessage = (gameState: GameState) => {
+    switch (gameState) {
+      case GameState.GAME_OVER:
+        return <h1>Game Over</h1>;
+      case GameState.WON:
+        return <h1>You Won!</h1>;
+      default:
+        return null;
+    }
+  };
+
+  const handlePatternLengthChange = (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    setMaxPatternLength(Number(e.target.value));
+    setGameState(GameState.READY);
+    e.target.blur();
+  };
+
+  const handleLevelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setLevel(Number(e.target.value));
+    setGameState(GameState.READY);
+    e.target.blur();
   };
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   });
 
+  useEffect(() => {
+    const savedBestScores = localStorage.getItem('bestScores');
+    if (savedBestScores) {
+      setBestScores(JSON.parse(savedBestScores));
+    }
+  }, []);
+
   // useEffect to generate the pattern array when the component mounts
   useEffect(() => {
     setPattern(generatePatternArray());
-  }, []);
+  }, [maxPatternLength]);
+
+  function renderCurrentBestScores(): import('react').ReactNode {
+    const currentScores = bestScores[maxPatternLength] || [];
+    return currentScores.length > 0 ? (
+      <ol>
+        {currentScores.map((score, index) => (
+          <li key={index}>
+            {formatTime(score.time)}: {score.name}
+          </li>
+        ))}
+      </ol>
+    ) : (
+      <p>No scores yet</p>
+    );
+  }
 
   return (
     <div className="container">
@@ -176,7 +259,7 @@ const PatternTipping = () => {
           name="level"
           id="level"
           value={level}
-          onChange={(e) => setLevel(Number(e.target.value))}
+          onChange={handleLevelChange}
         >
           <option value={1}>Level 1</option>
           <option value={2}>Level 2</option>
@@ -186,8 +269,9 @@ const PatternTipping = () => {
           name="patternLength"
           id="patternLength"
           value={maxPatternLength}
-          onChange={(e) => setMaxPatternLength(Number(e.target.value))}
+          onChange={handlePatternLengthChange}
         >
+          <option value={5}>5</option>
           <option value={20}>20</option>
           <option value={50}>50</option>
           <option value={100}>100</option>
@@ -198,8 +282,7 @@ const PatternTipping = () => {
         <h2>Timer</h2>
         <p>{formatTime(elapsedTime)} seconds</p>
       </div>
-      {gameState === 'GAME_OVER' ? <h1>Game Over</h1> : <></>}
-      {gameState === 'WON' ? <h1>You Won!</h1> : <></>}
+      {renderGameStateMessage(gameState)}
       <h2>
         Score {maxPatternLength - pattern.length} of {maxPatternLength}
       </h2>
@@ -210,6 +293,25 @@ const PatternTipping = () => {
       {/* {pattern.map((value, index) => (
         <div key={index}>{valueAsIcon(value)}</div>
       ))} */}
+      <div>
+        <p>Level: {level}</p>
+        <p>Pattern Length: {maxPatternLength}</p>
+        <p>Game state: {GameState[gameState]}</p>
+        <div>
+          <label>
+            Name:
+            <input
+              type="text"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+            />
+          </label>
+        </div>
+        <div>
+          <h2>Best Scores</h2>
+          {renderCurrentBestScores()}
+        </div>
+      </div>
     </div>
   );
 };
