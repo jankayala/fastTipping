@@ -1,11 +1,13 @@
 'use client';
-import { ReactElement, useEffect, useState } from 'react';
+import { ReactElement, useEffect, useState, useCallback } from 'react';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined';
 import ArrowUpwardOutlinedIcon from '@mui/icons-material/ArrowUpwardOutlined';
 import ArrowDownwardOutlinedIcon from '@mui/icons-material/ArrowDownwardOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import TrophyIcon from '@mui/icons-material/EmojiEvents';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 enum GameState {
   READY,
@@ -15,7 +17,6 @@ enum GameState {
 }
 
 const PatternTipping = () => {
-  // Function to generate a random number between min and max (inclusive)
   const getRandomNumber = (min: number, max: number): number => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   };
@@ -39,6 +40,7 @@ const PatternTipping = () => {
     [key: number]: { name: string; time: number }[];
   }>({});
   const [playerName, setPlayerName] = useState<string>('');
+  const [keyState, setKeyState] = useState<'success' | 'error' | null>(null);
 
   const valueAsArrow = (value: number): string => {
     switch (value) {
@@ -58,81 +60,87 @@ const PatternTipping = () => {
   const valueAsIcon = (value: number): ReactElement<any, any> => {
     switch (value) {
       case 1:
-        return <ArrowBackOutlinedIcon fontSize="large" />;
+        return <ArrowBackOutlinedIcon />;
       case 2:
-        return <ArrowForwardOutlinedIcon fontSize="large" />;
+        return <ArrowForwardOutlinedIcon />;
       case 3:
-        return <ArrowDownwardOutlinedIcon fontSize="large" />;
+        return <ArrowDownwardOutlinedIcon />;
       case 4:
-        return <ArrowUpwardOutlinedIcon fontSize="large" />;
+        return <ArrowUpwardOutlinedIcon />;
       default:
-        return <ErrorOutlineOutlinedIcon fontSize="large" />;
+        return <ErrorOutlineOutlinedIcon />;
     }
   };
 
-  const handleArrowDown = (key: string) => {
-    if (gameState !== GameState.GAME_OVER && gameState !== GameState.WON) {
-      const currentValue = pattern[patternIndex];
-      const currentValueAsArrow = valueAsArrow(currentValue);
-      if (key === currentValueAsArrow) {
-        if (pattern.length === maxPatternLength) {
-          startTimer();
-          setGameState(GameState.PLAYING);
-        }
-        const newPattern = [...pattern];
-        newPattern.shift();
-        setPattern(newPattern);
-        setPatternIndex(0);
-      } else {
-        if (pattern.length !== maxPatternLength) {
-          gameOver();
+  const handleArrowDown = useCallback(
+    (key: string) => {
+      if (gameState !== GameState.GAME_OVER && gameState !== GameState.WON) {
+        const currentValue = pattern[patternIndex];
+        const currentValueAsArrow = valueAsArrow(currentValue);
+
+        if (key === currentValueAsArrow) {
+          setKeyState('success');
+          setTimeout(() => setKeyState(null), 200);
+
+          if (pattern.length === maxPatternLength) {
+            startTimer();
+            setGameState(GameState.PLAYING);
+          }
+          const newPattern = [...pattern];
+          newPattern.shift();
+          setPattern(newPattern);
+          setPatternIndex(0);
+        } else {
+          setKeyState('error');
+          setTimeout(() => setKeyState(null), 300);
+
+          if (pattern.length !== maxPatternLength) {
+            gameOver();
+          }
         }
       }
-    }
-  };
+    },
+    [gameState, pattern, patternIndex, maxPatternLength]
+  );
 
-  const handleKeyDown = (event: KeyboardEvent): void => {
-    switch (event.key) {
-      case 'ArrowLeft':
-      case 'ArrowRight':
-      case 'ArrowDown':
-      case 'ArrowUp':
-        handleArrowDown(event.key);
-        console.log(event.key);
-        break;
-      case ' ':
-        reset();
-        console.log(event.code);
-      default:
-        break;
-    }
-  };
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent): void => {
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'ArrowRight':
+        case 'ArrowDown':
+        case 'ArrowUp':
+          handleArrowDown(event.key);
+          break;
+        case ' ':
+          event.preventDefault();
+          reset();
+          break;
+        default:
+          break;
+      }
+    },
+    [handleArrowDown]
+  );
 
   const reset = () => {
     setPattern(generatePatternArray());
     setElapsedTime(0);
     stopTimer();
     setGameState(GameState.READY);
+    setKeyState(null);
   };
 
   const updateBestScores = () => {
     const newScore = { name: playerName || 'Anonymous', time: elapsedTime };
-
-    // Create a copy of the best scores for the current pattern length
     const currentScores = bestScores[maxPatternLength] || [];
-
-    // Add the new score and sort the array by time in ascending order
     const updatedScores = [...currentScores, newScore]
       .sort((a, b) => a.time - b.time)
-      .slice(0, 3); // Keep only the top 3 scores
-
-    // Update the best scores object with the new scores for the current pattern length
+      .slice(0, 3);
     const newBestScores = {
       ...bestScores,
       [maxPatternLength]: updatedScores,
     };
-
-    // Set the new best scores in state and localStorage
     setBestScores(newBestScores);
     localStorage.setItem('bestScores', JSON.stringify(newBestScores));
   };
@@ -145,7 +153,6 @@ const PatternTipping = () => {
     }
   }, [pattern]);
 
-  // useEffect to handle the timer
   useEffect(() => {
     let startTime: number;
     let timer: NodeJS.Timeout;
@@ -162,7 +169,6 @@ const PatternTipping = () => {
     };
   }, [elapsedTime, timerRunning]);
 
-  // Format elapsed time to show milliseconds
   const formatTime = (time: number) => {
     const milliseconds = Math.floor(time % 1000);
     const seconds = Math.floor((time / 1000) % 60);
@@ -190,20 +196,7 @@ const PatternTipping = () => {
     setGameState(GameState.GAME_OVER);
   };
 
-  const renderGameStateMessage = (gameState: GameState) => {
-    switch (gameState) {
-      case GameState.GAME_OVER:
-        return <h1>Game Over</h1>;
-      case GameState.WON:
-        return <h1>You Won!</h1>;
-      default:
-        return null;
-    }
-  };
-
-  const handlePatternLengthChange = (
-    e: React.ChangeEvent<HTMLSelectElement>
-  ) => {
+  const handlePatternLengthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setMaxPatternLength(Number(e.target.value));
     setGameState(GameState.READY);
     e.target.blur();
@@ -217,11 +210,10 @@ const PatternTipping = () => {
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
-
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  });
+  }, [handleKeyDown]);
 
   useEffect(() => {
     const savedBestScores = localStorage.getItem('bestScores');
@@ -230,86 +222,165 @@ const PatternTipping = () => {
     }
   }, []);
 
-  // useEffect to generate the pattern array when the component mounts
   useEffect(() => {
     setPattern(generatePatternArray());
   }, [maxPatternLength]);
 
-  function renderCurrentBestScores(): import('react').ReactNode {
+  const progress = ((maxPatternLength - pattern.length) / maxPatternLength) * 100;
+
+  const getStatusType = () => {
+    switch (gameState) {
+      case GameState.GAME_OVER:
+        return 'error';
+      case GameState.WON:
+        return 'success';
+      case GameState.PLAYING:
+        return 'info';
+      default:
+        return 'info';
+    }
+  };
+
+  const getStatusMessage = () => {
+    switch (gameState) {
+      case GameState.GAME_OVER:
+        return 'Game Over! Press Space to retry';
+      case GameState.WON:
+        return 'You Won! Press Space to play again';
+      case GameState.PLAYING:
+        return 'Match the pattern!';
+      default:
+        return 'Press arrow keys to start';
+    }
+  };
+
+  const renderCurrentBestScores = () => {
     const currentScores = bestScores[maxPatternLength] || [];
     return currentScores.length > 0 ? (
-      <ol>
+      <ol className="leaderboard-list">
         {currentScores.map((score, index) => (
-          <li key={index}>
-            {formatTime(score.time)}: {score.name}
+          <li key={index} className="leaderboard-item">
+            <span className="leaderboard-rank">{index + 1}</span>
+            <span className="leaderboard-name">{score.name}</span>
+            <span className="leaderboard-time">{formatTime(score.time)}</span>
           </li>
         ))}
       </ol>
     ) : (
-      <p>No scores yet</p>
+      <div className="leaderboard-empty">
+        <TrophyIcon style={{ fontSize: 24, opacity: 0.3, marginBottom: 4 }} />
+        <p>No scores yet. Be the first!</p>
+      </div>
     );
-  }
+  };
 
   return (
-    <div className="container">
-      <h1>PatternTipping</h1>
-      <div>
-        <h2>Controls</h2>
-        <select
-          name="level"
-          id="level"
-          value={level}
-          onChange={handleLevelChange}
-        >
-          <option value={1}>Level 1</option>
-          <option value={2}>Level 2</option>
-          <option value={3}>Level 3</option>
-        </select>
-        <select
-          name="patternLength"
-          id="patternLength"
-          value={maxPatternLength}
-          onChange={handlePatternLengthChange}
-        >
-          <option value={5}>5</option>
-          <option value={20}>20</option>
-          <option value={50}>50</option>
-          <option value={100}>100</option>
-        </select>
-        <button onClick={reset}>Reset Pattern</button>
+    <div className="game-container">
+      <div className="game-header">
+        <h1 className="game-title">Pattern Tipping</h1>
+        <p className="game-subtitle">Memorize the pattern. Match it with arrow keys. Beat the clock.</p>
       </div>
-      <div>
-        <h2>Timer</h2>
-        <p>{formatTime(elapsedTime)} seconds</p>
-      </div>
-      {renderGameStateMessage(gameState)}
-      <h2>
-        Score {maxPatternLength - pattern.length} of {maxPatternLength}
-      </h2>
-      {pattern[0] && valueAsIcon(pattern[0])}
-      {pattern[1] && valueAsIcon(pattern[1])}
-      {pattern[2] && valueAsIcon(pattern[2])}
-      {pattern.length > 3 && <MoreVertIcon />}
-      {/* {pattern.map((value, index) => (
-        <div key={index}>{valueAsIcon(value)}</div>
-      ))} */}
-      <div>
-        <p>Level: {level}</p>
-        <p>Pattern Length: {maxPatternLength}</p>
-        <p>Game state: {GameState[gameState]}</p>
-        <div>
-          <label>
-            Name:
-            <input
-              type="text"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-            />
-          </label>
+
+      <div className={`status-message ${getStatusType()}`}>{getStatusMessage()}</div>
+
+      <div className="game-main">
+        <div className="game-left-panel">
+          <div className="game-card">
+            <div className="timer-display">
+              <div className={`timer-value${timerRunning ? ' running' : ''}`}>{formatTime(elapsedTime)}</div>
+              <div className="timer-label">Elapsed Time</div>
+            </div>
+          </div>
+
+          <div className="game-card compact">
+            <div className="score-display">
+              <span className="score-text">
+                {maxPatternLength - pattern.length} / {maxPatternLength}
+              </span>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="game-card fill">
+            <h2 className="card-title">Current Pattern</h2>
+            <div className="pattern-display">
+              {pattern.length === 0 && gameState === GameState.WON ? (
+                <TrophyIcon style={{ fontSize: 48, color: '#10b981' }} />
+              ) : (
+                <>
+                  {pattern[0] && (
+                    <div className={`arrow-icon active${keyState === 'success' ? ' success' : ''}${keyState === 'error' ? ' error' : ''}`}>
+                      {valueAsIcon(pattern[0])}
+                    </div>
+                  )}
+                  {pattern[1] && (
+                    <div className="arrow-icon">{valueAsIcon(pattern[1])}</div>
+                  )}
+                  {pattern[2] && (
+                    <div className="arrow-icon">{valueAsIcon(pattern[2])}</div>
+                  )}
+                  {pattern.length > 3 && (
+                    <div className="arrow-icon">
+                      <MoreVertIcon />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         </div>
-        <div>
-          <h2>Best Scores</h2>
-          {renderCurrentBestScores()}
+
+        <div className="game-right-panel">
+          <div className="game-card">
+            <h2 className="card-title">Settings</h2>
+            <div className="controls-grid">
+              <div className="control-group">
+                <label className="control-label">Level</label>
+                <select className="game-select" value={level} onChange={handleLevelChange}>
+                  <option value={1}>Level 1</option>
+                  <option value={2}>Level 2</option>
+                  <option value={3}>Level 3</option>
+                </select>
+              </div>
+              <div className="control-group">
+                <label className="control-label">Length</label>
+                <select className="game-select" value={maxPatternLength} onChange={handlePatternLengthChange}>
+                  <option value={5}>5</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <button className="game-btn primary" onClick={reset}>
+                <RefreshIcon style={{ fontSize: 16 }} /> Reset
+              </button>
+            </div>
+          </div>
+
+          <div className="game-card">
+            <h2 className="card-title">Player</h2>
+            <div className="control-group">
+              <input
+                className="game-input"
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="Enter your name"
+              />
+            </div>
+          </div>
+
+          <div className="game-card fill">
+            <h2 className="card-title">
+              <TrophyIcon style={{ verticalAlign: 'middle', marginRight: 6, fontSize: 16 }} />
+              Leaderboard
+            </h2>
+            {renderCurrentBestScores()}
+          </div>
         </div>
       </div>
     </div>
